@@ -1,7 +1,3 @@
-#include <SPI.h>
-#include <XPT2046_Touchscreen.h>
-#include <TFT_eSPI.h>
-#include <Preferences.h>
 #include <main.h>
 
 void saveHighScore(int score)
@@ -20,22 +16,41 @@ int loadHighScore()
 }
 
 // 初始化游戏
+
 void Start()
 {
-  snake.x[0] = SCREEN_WIDTH / 2;
-  snake.y[0] = SCREEN_HEIGHT / 2;
-  snake.length = 3;
-  snake.speed = 200; // 初始速度
-  input = 'd';       // 初始方向：右
+  if (IsPause)
+  {
+    DrawSnake();
+  }
+  else
+  {
+    snake.x[0] = SCREEN_WIDTH / 2;
+    snake.y[0] = SCREEN_HEIGHT / 2;
+    snake.length = init_snake_length;
+    snake.speed = init_snake_speed; // 初始速度
+    current_speed = snake.speed;
+    input = 'd'; // 初始方向：右
+  }
+  if (wall)
+  {
+    tft.fillRect(0, 0, SCREEN_WIDTH, 10, COLOR_WALL);                  // 顶部墙
+    tft.fillRect(0, SCREEN_HEIGHT - 10, SCREEN_WIDTH, 10, COLOR_WALL); // 底部墙
+    tft.fillRect(0, 0, 10, SCREEN_HEIGHT, COLOR_WALL);                 // 左侧墙
+    tft.fillRect(SCREEN_WIDTH - 10, 0, 10, SCREEN_HEIGHT, COLOR_WALL); // 右侧墙
+  }
 }
 
 // 绘制墙壁
-void wall()
+void Wall()
 {
-  tft.fillRect(0, 0, SCREEN_WIDTH, 10, COLOR_WALL);                  // 顶部墙
-  tft.fillRect(0, SCREEN_HEIGHT - 10, SCREEN_WIDTH, 10, COLOR_WALL); // 底部墙
-  tft.fillRect(0, 0, 10, SCREEN_HEIGHT, COLOR_WALL);                 // 左侧墙
-  tft.fillRect(SCREEN_WIDTH - 10, 0, 10, SCREEN_HEIGHT, COLOR_WALL); // 右侧墙
+  if (wall)
+  {
+    tft.fillRect(0, 0, SCREEN_WIDTH, 10, COLOR_WALL);                  // 顶部墙
+    tft.fillRect(0, SCREEN_HEIGHT - 10, SCREEN_WIDTH, 10, COLOR_WALL); // 底部墙
+    tft.fillRect(0, 0, 10, SCREEN_HEIGHT, COLOR_WALL);                 // 左侧墙
+    tft.fillRect(SCREEN_WIDTH - 10, 0, 10, SCREEN_HEIGHT, COLOR_WALL); // 右侧墙
+  }
   if (direction_line)
   {
     tft.drawLine(106, 10, 106, 230, COLOR_GRID);  // 左竖
@@ -53,35 +68,54 @@ void FOOD()
 {
   food.x = random(1, 30);
   food.y = random(1, 22);
-  for (int i = 0; i <= snake.length; i++)
+
+  bool valid = false;
+  while (!valid)
   {
-    while (food.x * 10 == snake.x[i] && food.y * 10 == snake.y[i])
+    food.x = random(1, 30);
+    food.y = random(1, 22);
+    valid = true;
+    for (int i = 0; i < snake.length; i++)
     {
-      food.x = random(1, 30);
-      food.y = random(1, 22);
-      break;
+      if (food.x * 10 == snake.x[i] && food.y * 10 == snake.y[i])
+      {
+        valid = false;
+        break;
+      }
     }
   }
+
   tft.fillRect(food.x * 10, food.y * 10, 10, 10, COLOR_FOOD); // 绘制食物
 }
 
-// 绘制蛇
 void DrawSnake()
 {
-  if (direction_line)
-  {
-    tft.drawLine(106, 10, 106, 230, COLOR_GRID);  // 左竖
-    tft.drawLine(212, 10, 212, 230, COLOR_GRID);  // 右竖
-    tft.drawLine(106, 120, 212, 120, COLOR_GRID); // 中横
-  }
+  // 绘制蛇头
+  if (Is_egg)
+    tft.fillRect(snake.x[0], snake.y[0], 10, 10, colors[7]);
+  else
+    tft.fillRect(snake.x[0], snake.y[0], 10, 10, COLOR_SNAKE_HEAD);
+  // 绘制蛇头表情
+  tft.fillCircle(snake.x[0] + 3, snake.y[0] + 3, 1, COLOR_SNAKE_EYE); // 左眼
+  tft.fillCircle(snake.x[0] + 7, snake.y[0] + 3, 1, COLOR_SNAKE_EYE); // 右眼
 
-  tft.fillRect(snake.x[0], snake.y[0], 10, 10, COLOR_SNAKE_HEAD);      // 绘制蛇头
-  tft.fillRect(snake.x[0] + 2, snake.y[0] + 2, 2, 2, COLOR_SNAKE_EYE); // 绘制蛇头左眼
-  tft.fillRect(snake.x[0] + 6, snake.y[0] + 2, 2, 2, COLOR_SNAKE_EYE); // 绘制蛇头右眼
-  // tft.fillRect(snake.x[0]+2, snake.y[0]+2, snake.x[0]+4, snake.y[0]+4, TFT_BLACK); // 绘制蛇头
-  for (int i = 1; i < snake.length; i++)
+  // 微笑嘴巴
+  tft.fillRect(snake.x[0] + 2, snake.y[0] + 6, 2, 2, COLOR_SNAKE_EYE); // 左嘴角
+  tft.fillRect(snake.x[0] + 6, snake.y[0] + 6, 2, 2, COLOR_SNAKE_EYE); // 右嘴角
+  tft.fillRect(snake.x[0] + 4, snake.y[0] + 7, 2, 2, COLOR_SNAKE_EYE);
+
+  // 绘制蛇身
+  for (int i = 1; i < snake.length - 1; i++)
   {
-    tft.fillRect(snake.x[i], snake.y[i], 10, 10, COLOR_SNAKE_BODY); // 绘制蛇
+    if (Is_egg)
+    {
+      int colorIndex = (i % 8); // 8种颜色循环使用
+      tft.fillRect(snake.x[i], snake.y[i], 10, 10, colors[colorIndex]);
+    }
+    else
+    {
+      tft.fillRect(snake.x[i], snake.y[i], 10, 10, COLOR_SNAKE_BODY);
+    }
   }
 }
 
@@ -94,6 +128,7 @@ void DrawScore()
   // tft.setTextColor(COLOR_TEXT);
   tft.print("Score: ");
   tft.print(score);
+  savedScore = loadHighScore();
   tft.print("  highest: ");
   tft.print(savedScore);
   // Debug
@@ -109,8 +144,34 @@ void DrawScore()
     tft.print("  ");
     tft.print(snake.y[0]);
     tft.print("  ");
-    tft.print(snake.speed);
+    tft.print((200 - snake.speed) / 2);
   }
+}
+
+void Egg()
+{
+  COLOR_BG = ~COLOR_BG;
+  COLOR_SNAKE_HEAD = ~COLOR_SNAKE_HEAD;
+  COLOR_SNAKE_BODY = ~COLOR_SNAKE_BODY;
+  COLOR_SNAKE_EYE = ~COLOR_SNAKE_EYE;
+  COLOR_WALL = ~COLOR_WALL;
+  COLOR_GRID = ~COLOR_GRID;
+  COLOR_FOOD = ~COLOR_FOOD;
+  COLOR_TEXT = ~COLOR_TEXT;
+  COLOR_BUTTON = ~COLOR_BUTTON;
+  refreshPage();
+  tft.setCursor(10, SCREEN_HEIGHT - 20);
+  tft.setTextSize(1);
+  tft.println("HELLO?");
+  if (wall)
+  {
+    tft.fillRect(0, 0, SCREEN_WIDTH, 10, COLOR_WALL);                  // 顶部墙
+    tft.fillRect(0, SCREEN_HEIGHT - 10, SCREEN_WIDTH, 10, COLOR_WALL); // 底部墙
+    tft.fillRect(0, 0, 10, SCREEN_HEIGHT, COLOR_WALL);                 // 左侧墙
+    tft.fillRect(SCREEN_WIDTH - 10, 0, 10, SCREEN_HEIGHT, COLOR_WALL); // 右侧墙
+  }
+  tft.fillRect(food.x * 10, food.y * 10, 10, 10, COLOR_FOOD); // 绘制食物
+  Is_egg = !Is_egg;
 }
 
 // 更新蛇的位置
@@ -130,18 +191,49 @@ void JIANPAN()
       return; // 游戏结束
     }
   }
+
+
   // 检查是否撞墙
   if (snake.x[0] <= 0 || snake.x[0] >= SCREEN_WIDTH - 10 || snake.y[0] <= 0 || snake.y[0] >= SCREEN_HEIGHT - 10)
   {
-    // 撞墙，游戏结束
-    life = 0; // 设置死亡标志
-    tft.setCursor(SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2);
-    tft.setTextSize(3);
-    // tft.setTextColor(TFT_RED);
-    tft.println("GAME OVER!TAT");
-    if (score > savedScore)
-      saveHighScore(score);
-    return; // 结束函数，游戏结束
+    if (wall)
+    {
+      if (debug && snake.x[0] < 130 && snake.y[0] > 230 - 10) // 彩蛋
+      {
+        snake.x[0] = SCREEN_WIDTH / 2;
+        snake.y[0] = SCREEN_HEIGHT / 2;
+        Egg();
+      }
+      else
+      {
+        // 撞墙，游戏结束
+        life = 0; // 设置死亡标志
+        tft.setCursor(SCREEN_WIDTH / 4, SCREEN_HEIGHT / 2);
+        tft.setTextSize(3);
+        // tft.setTextColor(TFT_RED);
+        tft.println("GAME OVER!TAT");
+        if (score > savedScore)
+        {
+          saveHighScore(score);
+          savedScore = loadHighScore();
+        }
+        delay(300);
+        return; // 结束函数，游戏结束
+      }
+    }
+    else
+    {
+      if (debug && snake.x[0] < 130 && snake.y[0] > 230 - 10 && !ineggwall) // 彩蛋
+      {
+        Egg();
+        ineggwall = true;
+      }
+      Wall_direction();
+    }
+  }
+  else // 没撞墙
+  {
+    ineggwall = false;
   }
 
   // 防止蛇不能回头：如果新方向与旧方向相反，则不更新
@@ -177,19 +269,38 @@ void JIANPAN()
     break;
   }
 
+  // // 检查是否吃到食物：区域判定
+  // if (snake.x[0] == food.x * 10 && snake.y[0] == food.y * 10)
+  // {
+  //   snake.length++; // 增加蛇的长度
+  //   score += 10;
+  //   // 每吃到一个食物，分数增加
+  //   if (score > savedScore)
+  //     saveHighScore(score);
+  //   snake.speed -= 2;
+  //   tft.fillRect(food.x * 10, food.y * 10, 10, 10, COLOR_BG); // 清除食物
+  //   FOOD();                                                   // 重新生成食物
+  // }
+
   // 检查是否吃到食物：区域判定
   if (snake.x[0] == food.x * 10 && snake.y[0] == food.y * 10)
   {
-    snake.length++; // 增加蛇的长度
-    score += 10;
+    snake.length += init_snake_get_food_length; // 增加蛇的长度
+    score += init_snake_get_food_score;
     // 每吃到一个食物，分数增加
     if (score > savedScore)
+    {
       saveHighScore(score);
-    snake.speed -= 2;
+      savedScore = loadHighScore();
+    }
+    if (game_diffcult && snake.speed < 100 && snake.speed > 30) // 加速
+      snake.speed -= init_snake_get_food_speed - 3;
+    else if (snake.speed > 50)
+      snake.speed -= init_snake_get_food_speed;
+    current_speed = snake.speed;
     tft.fillRect(food.x * 10, food.y * 10, 10, 10, COLOR_BG); // 清除食物
     FOOD();                                                   // 重新生成食物
   }
-
   // 绘制蛇
   DrawSnake();
 
@@ -197,6 +308,19 @@ void JIANPAN()
   tft.fillRect(snake.x[snake.length], snake.y[snake.length], 10, 10, COLOR_BG);
   // 更新分数
   DrawScore();
+}
+
+// 无墙时位置变化
+void Wall_direction()
+{
+  if (snake.x[0] < 0 || snake.x[0] >= 320)
+  {
+    snake.x[0] < 0 ? snake.x[0] = 320 : snake.x[0] = 0;
+  }
+  else if (snake.y[0] < 0 || snake.y[0] >= 240)
+  {
+    snake.y[0] < 0 ? snake.y[0] = 240 : snake.y[0] = 0;
+  }
 }
 
 // 初始化
@@ -226,7 +350,7 @@ void setup()
   tft.setTextSize(2);
   tft.setCursor(10, 10);
   // Start(); // 初始化蛇
-  // wall();  // 绘制墙壁
+  // Wall();  // 绘制墙壁
   // FOOD();  // 生成食物
 }
 
@@ -236,64 +360,73 @@ void Theme()
   {
   case 0:
     //
-    COLOR_BG = 0x18C3;         // 深夜蓝背景
-    COLOR_SNAKE_HEAD = 0x7BFF; // 星辰紫蛇头
-    COLOR_SNAKE_BODY = 0x4A7F; // 银河蓝蛇身
-    COLOR_SNAKE_EYE = 0xFFFF;  // 亮白蛇眼
-    COLOR_WALL = 0x2945;       // 金属灰墙壁
-    COLOR_GRID = 0x18C3;       // 暗蓝网格
-    COLOR_FOOD = 0xFB20;       // 彗星红食物
-    COLOR_TEXT = 0xC618;       // 浅灰文字
-    COLOR_BUTTON = 0x5BFF;     // 电光蓝按钮
+    COLOR_BG = 0x0000;         // 黑色背景
+    COLOR_SNAKE_HEAD = 0x07E0; // 明亮绿蛇头
+    COLOR_SNAKE_BODY = 0x03E0; // 深绿蛇身
+    COLOR_SNAKE_EYE = 0xFFFF;  // 白色蛇眼
+    COLOR_WALL = 0x4208;       // 深灰墙壁
+    COLOR_GRID = 0x2104;       // 暗灰网格线
+    COLOR_FOOD = 0xF800;       // 鲜红食物
+    COLOR_TEXT = 0x07E0;       // 绿色文字
+    COLOR_BUTTON = 0x07E0;     // 绿色按钮
 
     break;
   case 1:
     // 暖秋
-    COLOR_BG = 0xFEA0;         // 浅杏色背景
-    COLOR_SNAKE_HEAD = 0xD020; // 红棕蛇头
-    COLOR_SNAKE_BODY = 0xA260; // 棕橙蛇身
-    COLOR_SNAKE_EYE = 0x0000;  // 纯黑蛇眼
-    COLOR_WALL = 0x738E;       // 灰褐墙壁
-    COLOR_GRID = 0xB596;       // 米黄网格
-    COLOR_FOOD = 0xF800;       // 经典红食物
-    COLOR_TEXT = 0x4208;       // 暗棕文字
-    COLOR_BUTTON = 0xFD20;     // 橙黄色按钮
+    COLOR_BG = 0xFFFF;         // 纯白背景
+    COLOR_SNAKE_HEAD = 0xFBCE; // 樱粉蛇头
+    COLOR_SNAKE_BODY = 0xFBAE; // 淡粉蛇身
+    COLOR_SNAKE_EYE = 0x0010;  // 深蓝蛇眼
+    COLOR_WALL = 0xC638;       // 米灰墙壁
+    COLOR_GRID = 0xDEFB;       // 淡米网格
+    COLOR_FOOD = 0xF800;       // 红色草莓食物
+    COLOR_TEXT = 0x8410;       // 深灰文字
+    COLOR_BUTTON = 0x7D7C;     // 淡紫按钮
+
     break;
   case 2:
     // 夜间
-    COLOR_BG = 0xEFFD;         // 薄荷白背景
-    COLOR_SNAKE_HEAD = 0x07E0; // 明亮绿蛇头
-    COLOR_SNAKE_BODY = 0x05B0; // 柔和青蛇身
-    COLOR_SNAKE_EYE = 0x001F;  // 深蓝蛇眼
-    COLOR_WALL = 0xAD55;       // 浅灰墙壁
-    COLOR_GRID = 0xC618;       // 米黄网格
-    COLOR_FOOD = 0xFBE0;       // 淡粉食物
-    COLOR_TEXT = 0x3186;       // 藏青文字
-    COLOR_BUTTON = 0x07FF;     // 天青按钮
+    COLOR_BG = 0x001F;         // 深蓝夜背景
+    COLOR_SNAKE_HEAD = 0xF81F; // 荧光粉蛇头
+    COLOR_SNAKE_BODY = 0x07FF; // 青蓝蛇身
+    COLOR_SNAKE_EYE = 0xFFFF;  // 白色蛇眼
+    COLOR_WALL = 0x8410;       // 暗墙壁
+    COLOR_GRID = 0x3186;       // 荧光蓝网格
+    COLOR_FOOD = 0xFFE0;       // 荧黄食物
+    COLOR_TEXT = 0xFFFF;       // 白文字
+    COLOR_BUTTON = 0xFBE0;     // 橙粉按钮
 
     break;
   case 3:
-    COLOR_BG = 0x0000;         // 纯黑背景
-    COLOR_SNAKE_HEAD = 0x4208; // 黑曜石蛇头
-    COLOR_SNAKE_BODY = 0x3186; // 暗青蛇身
-    COLOR_SNAKE_EYE = 0xFFFF;  // 白色蛇眼
-    COLOR_WALL = 0x8410;       // 深灰墙壁
-    COLOR_GRID = 0x2104;       // 暗铁色网格
-    COLOR_FOOD = 0xF800;       // 红色食物
-    COLOR_TEXT = 0xC618;       // 浅灰文字
-    COLOR_BUTTON = 0x07E0;     // 亮绿按钮
+
+    // 秋日柔和配色方案（变量赋值版）
+    COLOR_BG = 0xF7D0;         // 柔米白
+    COLOR_SNAKE_HEAD = 0xD580; // 枫红橙
+    COLOR_SNAKE_BODY = 0xB3A0; // 枯玫瑰棕
+                               //  COLOR_SNAKE_BODY_TAIL= 0x8C61;  // 深橘褐
+    COLOR_SNAKE_EYE = 0xFFFF;  // 纯白
+
+    COLOR_WALL = 0x7320; // 树干褐
+    COLOR_GRID = 0xC638; // 枯叶土黄
+
+    COLOR_FOOD = 0xFA60; // 柿子红
+    COLOR_TEXT = 0x0000; // 黑色文字
+
+    COLOR_BUTTON = 0xDD22; // 枫叶红
+                           //  COLOR_BUTTON_HOVER   = 0xAA00;  // 深栗红
+                           //  COLOR_ACCENT         = 0xFFE0;  // 柔金色
 
     break;
   case 4:
-    COLOR_BG = 0xFFFF;         // 雪白背景
-    COLOR_SNAKE_HEAD = 0xF81F; // 荧光粉蛇头
-    COLOR_SNAKE_BODY = 0xFD20; // 糖果橙蛇身
-    COLOR_SNAKE_EYE = 0x0010;  // 深蓝蛇眼
-    COLOR_WALL = 0xC618;       // 浅灰墙壁
-    COLOR_GRID = 0xFFE0;       // 米黄网格
-    COLOR_FOOD = 0xF800;       // 樱桃红食物
-    COLOR_TEXT = 0x8410;       // 深棕文字
-    COLOR_BUTTON = 0x07FF;     // 天蓝按钮
+    COLOR_BG = 0xC618;         // 浅灰背景
+    COLOR_SNAKE_HEAD = 0x0000; // 黑蛇头
+    COLOR_SNAKE_BODY = 0x8410; // 深灰蛇身
+    COLOR_SNAKE_EYE = 0xFFFF;  // 白蛇眼
+    COLOR_WALL = 0x8410;       // 深灰墙壁
+    COLOR_GRID = 0xA514;       // 中灰网格
+    COLOR_FOOD = 0xFFFF;       // 白色食物（点缀）
+    COLOR_TEXT = 0x0000;       // 黑文字
+    COLOR_BUTTON = 0x8410;     // 深灰按钮
 
     break;
   }
@@ -379,6 +512,12 @@ void ShowStart()
   tft.setTextSize(2);
   tft.setCursor(0, 0);
   tft.print("SET");
+  tft.setCursor(SCREEN_WIDTH / 2, SCREEN_HEIGHT - 10);
+  if (IsPause && life)
+  {
+    tft.setTextSize(1);
+    tft.print("You have a game");
+  }
 }
 
 void ShowEnd()
@@ -398,172 +537,266 @@ void ShowSet()
   tft.print("X");
   setting = 1;
 
-  DrawTextWithBorder(0, 0, "Line: ");
+  DrawTextWithBorder(0, 0 * 40, "Line: ");
   direction_line ? tft.print("YES!") : tft.print("NO!");
 
-  DrawTextWithBorder(0, 40, "Debug: ");
+  DrawTextWithBorder(0, 1 * 40, "Debug: ");
   debug ? tft.print("YES!") : tft.print("NO!");
 
-  DrawTextWithBorder(0, 80, "SnakeColor: ");
+  DrawTextWithBorder(0, 2 * 40, "SnakeColor: ");
   switch (colorchoice)
   {
   case 0:
-    tft.print("modern");
+    tft.print("Matrix");
     break;
   case 1:
-    tft.print("Autumn");
+    tft.print("Sakura❀");
     break;
   case 2:
-    tft.print("Night");
+    tft.print("Neon Night");
     break;
   case 3:
-    tft.print("awa");
+    tft.print("Autumn");
     break;
   case 4:
-    tft.print("qwq");
+    tft.print("Monochrome");
+    break;
+  }
+  tft.fillRect(0, 118, 320, 20, COLOR_BG);
+  if (!reset)
+  {
+    DrawTextWithBorder(0, 3 * 40, "ResetScore ");
+    tft.print(savedScore);
+  }
+  else
+  {
+    DrawTextWithBorder(0, 3 * 40, "Are You Sure To Reset? ");
+  }
+
+  DrawTextWithBorder(0, 4 * 40, "WALL? ");
+  wall ? tft.print("YES!") : tft.print("NO!");
+
+  DrawTextWithBorder(0, 5 * 40, "Diffcult: ");
+  game_diffcult ? tft.print("Very!") : tft.print("Easy!");
+}
+
+void handleTouch()
+{
+  p = ts.getPoint();
+  int mapX = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, tft.width());
+  int mapY = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, tft.height());
+
+  switch (page)
+  {
+  case 0:
+    handleStartTouch(mapX, mapY);
+    break;
+  case 1:
+    handleSettingTouch(mapX, mapY);
+    break;
+  case 2:
+    handleGameTouch(mapX, mapY);
     break;
   }
 }
+
+void handleStartTouch(int x, int y) // 开始界面
+{
+  if (x < 40 && y < 20)
+  {
+    page = 1;
+    refreshPage();
+    delay(100);
+  }
+  else
+  {
+    if (IsPause && life)
+    { // 游戏时返回暂停游戏
+      tft.fillScreen(COLOR_BG);
+      page = 2;
+      Wall();
+      tft.fillRect(food.x * 10, food.y * 10, 10, 10, COLOR_FOOD); // 绘制食物FD
+      IsPause = false;
+      snake.speed = 200;
+    }
+    else
+    {
+      page = 2;
+      StartGame();
+    }
+  }
+}
+
+void handleSettingTouch(int x, int y) // 设置界面
+{
+  if (x > 300 && y > 220)
+  {
+    page = 0;
+    reset = false;
+    refreshPage();
+  }
+  else if (y <= 40)
+  {
+    direction_line = !direction_line;
+    refreshPage();
+  }
+  else if (y <= 40 * 2)
+  {
+    debug = !debug;
+    refreshPage();
+  }
+  else if (y <= 40 * 3)
+  {
+    colorchoice = (colorchoice + 1) % 5;
+    Theme();
+    preferences.begin("color", false);
+    preferences.putInt("color", colorchoice);
+    preferences.end();
+    refreshPage();
+  }
+  else if (y <= 40 * 4)
+  {
+    if (!reset)
+    {
+      reset = true;
+      ShowSet();
+    }
+    else
+    {
+      saveHighScore(0);
+      savedScore = loadHighScore();
+      reset = false;
+      ShowSet();
+    }
+  }
+  else if (y <= 40 * 5)
+  {
+    wall = !wall;
+    refreshPage();
+  }
+  else if (y <= 40 * 6)
+  {
+    game_diffcult = !game_diffcult;
+    if (game_diffcult)
+    {
+      init_snake_speed = 150;
+      init_snake_length = 3;
+      init_snake_get_food_score = 20;
+      init_snake_get_food_speed = 6;
+      init_snake_get_food_length = 2;
+    }
+    else
+    {
+      init_snake_speed = 180;
+      init_snake_length = 3;
+      init_snake_get_food_score = 10;
+      init_snake_get_food_speed = 2;
+      init_snake_get_food_length = 1;
+    }
+    refreshPage();
+  }
+  delay(200);
+}
+
+void handleGameTouch(int x, int y) // 游戏界面
+{
+  if (x > 310 && y < 10)
+  {
+    page = 0;
+    // score = 0;
+    IsPause = true;
+    snake.speed = 100000; // 速度无限大
+    refreshPage();
+    delay(300);
+  }
+  else
+  {
+    Touch();
+  }
+}
+
+void handleGameOver(bool touched)
+{
+  ShowEnd();
+  if (!touched)
+    return;
+
+  p = ts.getPoint();
+  int x = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, tft.width());
+  int y = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, tft.height());
+
+  if (x > 310 && y < 10)
+  {
+    page = 0;
+    score = 0;
+    refreshPage();
+    delay(300);
+  }
+  else
+  {
+    StartGame(); // 重启游戏
+    delay(300);
+  }
+}
+
+void refreshPage()
+{
+  tft.fillScreen(COLOR_BG);
+  switch (page)
+  {
+  case 0:
+    ShowStart();
+    break;
+  case 1:
+    ShowSet();
+    break;
+  }
+}
+
+void StartGame()
+{
+  tft.fillScreen(COLOR_BG);
+  Start();
+  Wall();
+  FOOD();
+  gamestart = 1;
+  life = 1;
+  score = 0;
+  lastDirection = 'd';
+  snake.speed = 200;
+}
+
+// 0开始
+// 1设置
+// 2游戏
 
 void loop()
 {
   bool touched = ts.tirqTouched() && ts.touched();
   unsigned long currentTime = millis();
 
-  if (touched) // 触摸了
-  {
-    p = ts.getPoint();
-    // 映射触摸点坐标到屏幕范围
-    int mapX = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, tft.width());
-    int mapY = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, tft.height());
-    if (!gamestart)
-    {
-      if (setting)
-      {
-        if (mapX > 300 && mapY > 220)
-        {
-          setting = 0;
-          tft.fillScreen(COLOR_BG);
-        }
-        else if (mapY < 20 && mapY > 0)
-        {
-          direction_line = !direction_line;
-          tft.fillScreen(COLOR_BG);
-          ShowSet();
-        }
-        else if (mapY > 40 && mapY < 60)
-        {
-          debug = !debug;
-          tft.fillScreen(COLOR_BG);
-          ShowSet();
-        }
-        else if (mapY > 60 && mapY < 90)
-        {
-          if (colorchoice == 4)
-            colorchoice = 0;
-          else
-            colorchoice += 1;
-          Theme();
-          preferences.begin("color", false);
-          int score = preferences.putInt("color", colorchoice);
-          preferences.end();
-          tft.fillScreen(COLOR_BG);
-          ShowSet();
-        }
-        delay(200); // 轻微防抖
-      }
-      else
-      {
-        if (mapX < 40 && mapY < 20)
-        {
-          tft.fillScreen(COLOR_BG);
-          ShowSet();
-        }
-        else
-        {
-          // 第一次触摸，开始游戏
-          tft.fillScreen(COLOR_BG);
-          Start();
-          wall();
-          FOOD();
-          gamestart = 1;
-          life = 1;
-          // score = 0;
-          // lastDirection = 'd';
-          // snake.speed = 200;
-          // delay(300); // 防止误触
-        }
-      }
-    }
-    else if (life) // 游戏中
-    {
-      if (mapX > 310 && mapY < 10) // 返回主页
-      {
-        tft.fillScreen(COLOR_BG);
-        // Start();
-        gamestart = 0;
-        score = 0;
-        ShowStart();
-        delay(300); // 防抖
-      }
-      else
-      {
-        Touch();
-      }
-    }
-  }
+  if (touched)
+    handleTouch(); // 独立处理触摸事件
 
-  if (gamestart && life) // 开始了也活着
+  switch (page)
   {
-    if (currentTime - lastUpdateTime > snake.speed)
+  case 0:
+    ShowStart();
+    break;
+  case 1:
+    ShowSet();
+    break;
+  case 2:
+    if (life)
     {
-      lastUpdateTime = currentTime;
-      JIANPAN();
-    }
-  }
-  else if (!gamestart) // 没开始
-  {
-    if (setting)
-    {
-      ShowSet();
+      if (currentTime - lastUpdateTime > snake.speed)
+      {
+        lastUpdateTime = currentTime;
+        JIANPAN();
+      }
     }
     else
-    {
-      ShowStart();
-    }
-  }
-  else if (!life) // 死了
-  {
-    ShowEnd();
-
-    if (touched)
-    {
-      p = ts.getPoint();
-      // 映射触摸点坐标到屏幕范围
-      int mapX = map(p.x, TOUCH_MIN_X, TOUCH_MAX_X, 0, tft.width());
-      int mapY = map(p.y, TOUCH_MIN_Y, TOUCH_MAX_Y, 0, tft.height());
-      if (mapX > 310 && mapY < 10) // 返回主页
-      {
-        tft.fillScreen(COLOR_BG);
-        // Start();
-        gamestart = 0;
-        score = 0;
-        ShowStart();
-        delay(300); // 防抖
-      }
-      else
-      {
-        tft.fillScreen(COLOR_BG);
-        Start();
-        wall();
-        FOOD();
-        gamestart = 1;
-        life = 1;
-        score = 0;
-        lastDirection = 'd';
-        snake.speed = 200;
-        delay(300);
-      }
-    }
+      handleGameOver(touched);
+    break;
   }
 }
