@@ -1,0 +1,43 @@
+#include <SPI.h>
+#include <TFT_eSPI.h>
+
+TFT_eSPI tft = TFT_eSPI();
+
+#define COLOR_BACKGROUND tft.color565(255, 245, 230) // 浅米色
+#define COLOR_SNAKE_BODY tft.color565(255, 182, 193) // 樱花粉
+#define COLOR_FOOD       tft.color565(144, 238, 144) // 嫩绿色
+#define COLOR_BORDER     tft.color565(160, 82, 45)   // 淡棕色
+#define COLOR_FONT       tft.color565(101, 67, 33)   // 深褐色
+
+void drawSnake();
+void drawFood();
+
+void setup() {
+  tft.init();
+  tft.setRotation(1);
+
+  tft.fillScreen(COLOR_BACKGROUND);
+  tft.drawRect(0, 0, tft.width(), tft.height(), COLOR_BORDER);
+
+  drawSnake();
+  drawFood();
+
+  tft.setTextColor(COLOR_FONT);
+  tft.setTextSize(2);
+  tft.setCursor(20, 150);
+  tft.print("Spring Warmth");
+}
+
+void loop() {
+  // 这里放游戏主循环或动画
+}
+
+void drawSnake() {
+  tft.fillRect(40, 60, 20, 20, COLOR_SNAKE_BODY);
+  tft.fillRect(60, 60, 20, 20, COLOR_SNAKE_BODY);
+  tft.fillRect(80, 60, 20, 20, COLOR_SNAKE_BODY);
+}
+
+void drawFood() {
+  tft.fillRect(120, 100, 20, 20, COLOR_FOOD);
+}
